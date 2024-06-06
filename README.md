@@ -41,7 +41,7 @@ Following is the list of implemented controllers:
 
 
 
-**1. 根据[链接](https://www.coursera.org/learn/intro-self-driving-cars/supplement/pGdcu/carla-installation-guide) 下载软件 （需要注册），创建Python 3.6的虚拟环境。**
+**1. 根据[链接](https://pan.baidu.com/s/1o44XkDXRTgSMKwu_-8T8ww?pwd=hutb) 下载Carla环境，然后创建Python 3.6的虚拟环境。**
 
 ```shell
 pip install -r requirements.txt
