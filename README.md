@@ -39,9 +39,16 @@ Following is the list of implemented controllers:
 
 ## Usage
 
-**1. Install [CARLA Simulator](https://carla.org/) [Tested with CARLA v0.8.4]**
 
-**2. Navigate to CARLA directory, for exampe:**
+
+**1. 根据[链接](https://www.coursera.org/learn/intro-self-driving-cars/supplement/pGdcu/carla-installation-guide) 下载软件 （需要注册），创建Python 3.6的虚拟环境。**
+
+```shell
+pip install -r requirements.txt
+pip install matplotlib==2.2.2
+```
+
+**2. 导航至 CARLA 可执行程序目录，比如：**
 
 *Windows:*
 

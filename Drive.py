@@ -25,6 +25,9 @@ import Controller
 
 # Script level imports
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
+sys.path.append('PythonClient')
+
+
 import Live_Plotter as lv   # Custom live plotting library
 from carla            import sensor
 from carla.client     import make_carla_client, VehicleControl
