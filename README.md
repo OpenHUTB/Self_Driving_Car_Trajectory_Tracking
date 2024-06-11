@@ -1,47 +1,47 @@
-# Motion Control of Self-Driving Car for Trajectory Tracking
+# 自动驾驶汽车的轨迹跟踪运动控制
 
 ![Github Stars](https://badgen.net/github/stars/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking?icon=github&label=stars)
 ![Github Forks](https://badgen.net/github/forks/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking?icon=github&label=forks)
 
-## Project Overview
+## 项目概述
 
-<p align="justify">
-This project was focused on control of an autonomous vehicle for trajectory tracking using CARLA Simulator. Various control algorithms were implemented in Python for accomplishing the task of lateral and longitudinal control of the vehicle.
+<p align="justify">该项目专注于使用 CARLA 仿真器对自动驾驶车辆进行轨迹跟踪控制。为了实现车辆的横向和纵向控制，项目中使用 Python 实现了各种控制算法。
 </p>
 
-Following is the list of implemented controllers:
-- Lateral Controllers:
-  - Bang-Bang Controller
-  - PID Controller
-  - Pure-Pursuit Controller
-  - Stanley Controller
-  - Proximally Optimal Predictive (POP) Controller
-- Longitudinal Controllers:
-  - PID Controller
-  - Adaptive Longitudinal Controller (ALC)
+以下是已实现的控制器列表：
 
-|                  | **ALC**                                                                                                              | **PID**                                                                                                              |
-|------------------|----------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| **Bang Bang**    | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20Bang-Bang.gif)    | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20Bang-Bang.gif)    |
-| **PID**          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20PID.gif)          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20PID.gif)          |
+- 横向控制器:
+  - Bang-Bang 控制器
+  - PID 控制器
+  - Pure-Pursuit控制器
+  - Stanley 控制器
+  - Proximally Optimal Predictive (POP) 控制器
+- 纵向控制器:
+  - PID 控制器
+  - Adaptive Longitudinal 控制器 (ALC)
+
+|                  | **ALC**                                  | **PID**                                  |
+| ---------------- | ---------------------------------------- | ---------------------------------------- |
+| **Bang Bang**    | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20Bang-Bang.gif) | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20Bang-Bang.gif) |
+| **PID**          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20PID.gif) | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20PID.gif) |
 | **Pure Pursuit** | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20Pure-Pursuit.gif) | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20Pure-Pursuit.gif) |
-| **Stanley**      | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20Stanley.gif)      | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20Stanley.gif)      |
-| **POP**          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20POP.gif)          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20POP.gif)          |
+| **Stanley**      | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20Stanley.gif) | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20Stanley.gif) |
+| **POP**          | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/ALC%20-%20POP.gif) | ![](https://github.com/Tinker-Twins/Self_Driving_Car_Trajectory_Tracking/blob/main/Media/PID%20-%20POP.gif) |
 
 ## File Description
 
-- `Waypoints.txt` hosts the reference trajectory of the entire mission.
-- `Controller.py` is used to implement the lateral and longitudinal controllers for tracking the trajectory.
-- `Drive.py` hosts the simulation parameters, connects with the simulator and runs the entire motion control pipeline for autonomous trajectory tracking.
-- `Live_Plotter.py` generates and updates plots of the vehicle states and trajectory in real-time.
-- `Controller Performance Analysis.ipynb` is used to analyze the controller performance in terms of tracking metrics and latency.
-- `Results` directory hosts the results of a complete trajectory tracking mission in form of plots and log files.
+- `Waypoints.txt` 承载整个任务的参考轨迹。
+- `Controller.py` 用于实现横向和纵向控制器以追踪轨迹。
+- `Drive.py` 存储仿真参数，与模拟器连接，并运行整个运动控制流程以实现自主轨迹追踪。
+- `Live_Plotter.py` 生成并实时更新车辆状态和轨迹的图表。
+- `Controller Performance Analysis.ipynb` 用于根据追踪指标和延迟来分析控制器的性能。
+- `Results` 该目录存储了完整的轨迹追踪任务的结果，以图表和日志文件的形式呈现。
 
-## Usage
+## 使用
 
 
 
-**1. 根据[链接](https://pan.baidu.com/s/1o44XkDXRTgSMKwu_-8T8ww?pwd=hutb) 下载Carla环境，然后创建Python 3.6的虚拟环境。**
+**1. 根据[链接](https://github.com/carla-simulator/carla/releases/tag/0.9.14) 下载Carla环境，然后创建Python 3.7的虚拟环境。**
 
 ```shell
 pip install -r requirements.txt
@@ -62,21 +62,23 @@ pip install matplotlib==2.2.2
 $ cd $HOME/CARLA
 ```
 
-**3. Launch the CARLA Simulator application, for example:**
+**3. 打开CARLA仿真器**
 
 *Windows:*
 
 ```bash
-CarlaUE4.exe /Game/Maps/RaceTrack -carla-server -benchmark -fps=20 -carla-no-hud
+CarlaUE4.exe 
 ```
 
 *Ubuntu:*
 
 ```bash
-$ ./CarlaUE4.sh /Game/Maps/RaceTrack -carla-server -benchmark -fps=20 -carla-no-hud
+$ ./CarlaUE4.sh 
 ```
 
-**4. Run the Python client script while choosing the appropriate longitudinal and lateral control algorithms:**
+航点是在默认Town10地图选取，使用默认地图测试！！！
+
+**4. 运行脚本，选择合适的控制器**
 
 *Windows:*
 
@@ -89,6 +91,8 @@ $ ./CarlaUE4.sh /Game/Maps/RaceTrack -carla-server -benchmark -fps=20 -carla-no-
 ```bash
 $ python Drive.py --Longitudinal-Controller: {PID, ALC} --Lateral-Controller: {BangBang, PID, PurePursuit, Stanley, POP}
 ```
+
+这里推荐使用默认的控制器，不添加参数运行脚本！
 
 ## Citation
 
