@@ -12,23 +12,22 @@ import time
 import math
 import numpy as np
 import csv
-import matplotlib
-matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import configparser
-# Required to ignore python warnings in terminal window
-import warnings
-warnings.filterwarnings("ignore")
-
 # Local level imports
 import Controller
+import Live_Plotter as lv   # 定制实时绘图库
+
+# 需要在终端窗口中忽略Python警告
+import warnings
+import matplotlib
+warnings.filterwarnings("ignore")
+matplotlib.use('agg')
 
 # Script level imports
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
 sys.path.append('PythonClient')
 
-
-import Live_Plotter as lv   # Custom live plotting library
 from carla            import sensor
 from carla.client     import make_carla_client, VehicleControl
 from carla.settings   import CarlaSettings
@@ -36,17 +35,18 @@ from carla.tcp        import TCPConnectionError
 from carla.controller import utils
 
 """
-Configurable Parameters
+配置参数
 """
-ITER_FOR_SIM_TIMESTEP  = 10     # no. iterations to compute approx sim timestep
-WAIT_TIME_BEFORE_START = 5.00   # simulator seconds (time before controller start)
-TOTAL_RUN_TIME         = 200.00 # simulator seconds (total runtime before sim end)
-TOTAL_FRAME_BUFFER     = 300    # number of frames to buffer after total runtime
-NUM_PEDESTRIANS        = 0      # total number of pedestrians to spawn
-NUM_VEHICLES           = 0      # total number of vehicles to spawn
-SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
-SEED_VEHICLES          = 0      # seed for vehicle spawn randomizer
+ITER_FOR_SIM_TIMESTEP  = 10      # 计算大概仿真时间步的迭代数目
+WAIT_TIME_BEFORE_START = 5.00    # 仿真秒数（控制器开始之前的时间）
+TOTAL_RUN_TIME         = 200.00  # 仿真秒数（仿真结束前总共的运行时间）
+TOTAL_FRAME_BUFFER     = 300     # 总共运行时间后进入缓冲中的帧数
+NUM_PEDESTRIANS        = 0       # 生成行人的总数
+NUM_VEHICLES           = 0       # 生成车辆的总数
+SEED_PEDESTRIANS       = 0       # 行人生成随机数发生器的种子
+SEED_VEHICLES          = 0       # 车辆生成随机数发生器的种子
 
+# 天气的类型：weather id
 WEATHERID = {
     "DEFAULT": 0,
     "CLEARNOON": 1,
@@ -64,7 +64,7 @@ WEATHERID = {
     "HARDRAINSUNSET": 13,
     "SOFTRAINSUNSET": 14,
 }
-SIMWEATHER = WEATHERID["CLEARNOON"]     # set simulation weather
+SIMWEATHER = WEATHERID["CLEARNOON"]     # 设置仿真天气（simulation weather）
 
 PLAYER_START_INDEX = 1      # spawn index for player (keep to 1)
 FIGSIZE_X_INCHES   = 6      # x figure size of feedback in inches
@@ -74,18 +74,18 @@ PLOT_BOT           = 0.1
 PLOT_WIDTH         = 0.8
 PLOT_HEIGHT        = 0.8
 
-WAYPOINTS_FILENAME = 'Waypoints.txt'  # waypoint file to load
-DIST_THRESHOLD_TO_LAST_WAYPOINT = 1.0 # some distance from last position before simulation ends (6 for Bang-Bang, 1 for others)
+WAYPOINTS_FILENAME = 'Waypoints.txt'   # 加载的路径点文件
+DIST_THRESHOLD_TO_LAST_WAYPOINT = 1.0  # 仿真结束之前最后位置的一些距离 (6 表示 Bang-Bang, 1 表示其他)
 
-# Path interpolation parameters
-INTERP_MAX_POINTS_PLOT    = 10   # number of points used for displaying
-                                 # lookahead path
-INTERP_LOOKAHEAD_DISTANCE = 20   # lookahead in meters
-INTERP_DISTANCE_RES       = 0.01 # distance between interpolated points
+# 路径插值参数
+INTERP_MAX_POINTS_PLOT    = 10    # 用于显示前视路径的点数
+INTERP_LOOKAHEAD_DISTANCE = 20    # 前视距离（米）
+INTERP_DISTANCE_RES       = 0.01  # 插值点之间的距离
 
-# Controller output directory
+# 控制器输出目录
 CONTROLLER_OUTPUT_FOLDER = os.path.dirname(os.path.realpath(__file__)) +\
                           '/Results/'
+
 
 def make_carla_settings(args):
     """Make a CarlaSettings Object with the Required Settings

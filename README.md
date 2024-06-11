@@ -67,7 +67,7 @@ $ cd $HOME/CARLA
 *Windows:*
 
 ```bash
-> CarlaUE4.exe /Game/Maps/RaceTrack -carla-server -benchmark -fps=20 -carla-no-hud
+CarlaUE4.exe /Game/Maps/RaceTrack -carla-server -benchmark -fps=20 -carla-no-hud
 ```
 
 *Ubuntu:*
