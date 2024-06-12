@@ -34,7 +34,7 @@ WAIT_TIME_BEFORE_START = 5.00   # simulator seconds (time before controller star
 TOTAL_RUN_TIME         = 200.00 # simulator seconds (total runtime before sim end)
 TOTAL_FRAME_BUFFER     = 300    # number of frames to buffer after total runtime
 NUM_PEDESTRIANS        = 0      # total number of pedestrians to spawn
-NUM_VEHICLES           = 0      # total number of vehicles to spawn
+NUM_VEHICLES           = 2      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0      # seed for vehicle spawn randomizer
 
@@ -165,9 +165,7 @@ def send_control_command(vehicle, throttle, steer, brake, hand_brake=False, reve
     control.reverse = reverse
     vehicle.apply_control(control)
 
-def cleanup_resources(world, vehicle):
-    if vehicle is not None:
-        vehicle.destroy()
+def cleanup_resources(world):
     settings = world.get_settings()
     settings.synchronous_mode = False
     world.apply_settings(settings)
@@ -236,182 +234,202 @@ def exec_waypoint_nav_demo(args):
     blueprint_library = world.get_blueprint_library()
     vehicle_bp = blueprint_library.filter('vehicle.audi.tt')[0]
     spawn_points = world.get_map().get_spawn_points()
-    vehicle = world.try_spawn_actor(vehicle_bp, spawn_points[0])
+    vehicles = []
+    for i in range(NUM_VEHICLES):
+        vehicle = world.try_spawn_actor(vehicle_bp, spawn_points[i])
+        vehicles.append(vehicle)
 
-    # 从配置文件中读取实时绘图的相关参数，并根据这些参数创建一个定时器对象，以便控制实时绘图的行为。
-    config = configparser.ConfigParser()
-    config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Configurations.cfg'))
-    demo_opt = config['Demo Parameters']
-    # Get options
-    enable_live_plot = demo_opt.get('live_plotting', 'true').capitalize() == 'True'
-    live_plot_period = float(demo_opt.get('live_plotting_period', 0))
-    # Set options
-    live_plot_timer = Timer(live_plot_period)
-
-    # 从CSV文件中读取路径点数据，并将其转换为NumPy数组，便于进一步处理
+    # # 从CSV文件中读取路径点数据，并将其转换为NumPy数组，便于进一步处理
     waypoints_file = WAYPOINTS_FILENAME
-    with open(waypoints_file) as waypoints_file_handle:
-        waypoints = list(csv.reader(waypoints_file_handle, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
-    waypoints_np = np.array(waypoints)
-    # print(waypoints_np)
+    # with open(waypoints_file) as waypoints_file_handle:
+    #     waypoints = list(csv.reader(waypoints_file_handle, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+    # waypoints_np = np.array(waypoints)
+    waypoints_by_vehicle = {}
+    with open(waypoints_file, 'r') as f:
+        reader = csv.reader(f, delimiter=',', quoting=csv.QUOTE_NONNUMERIC)
+        for row in reader:
+            vehicle_id = int(row[0])
+            x = row[1]
+            y = row[2]
+            t = row[3]
+            if vehicle_id not in waypoints_by_vehicle:
+                waypoints_by_vehicle[vehicle_id] = []
+            waypoints_by_vehicle[vehicle_id].append((x, y, t))
 
-    # 计算路径点（waypoints）之间的距离
-    wp_distance = []
-    for i in range(1, waypoints_np.shape[0]):
-
-        wp_distance.append(np.sqrt((waypoints_np[i][0] - waypoints_np[i-1][0])**2 + (waypoints_np[i][1] - waypoints_np[i-1][1])**2))
-    # 在 wp_distance 列表的末尾添加一个 0。这通常表示终点到起点的距离，或者是为了保持列表的长度与路径点数量一致。
-    wp_distance.append(0)
+    # 计算路径点之间的距离
+    wp_distances_by_vehicle = {}
+    for vehicle_id, waypoints in waypoints_by_vehicle.items():
+        waypoints_np = np.array(waypoints)
+        wp_distance = [np.sqrt(
+            (waypoints_np[i][0] - waypoints_np[i - 1][0]) ** 2 +
+            (waypoints_np[i][1] - waypoints_np[i - 1][1]) ** 2
+        ) for i in range(1, waypoints_np.shape[0])]
+        wp_distance.append(0)  # 添加最后一个点的距离
+        wp_distances_by_vehicle[vehicle_id] = wp_distance
 
     # 轨迹平滑
-    wp_interp = []
-    wp_interp_hash = []
-    interp_counter = 0
+    smoothed_waypoints_by_vehicle = {}
     min_distance = 2 * INTERP_DISTANCE_RES
-    for i in range(waypoints_np.shape[0] - 1):
-        wp_interp.append(list(waypoints_np[i]))
-        wp_interp_hash.append(interp_counter)
-        interp_counter += 1
-        if wp_distance[i] < min_distance:
-            continue  # 如果距离太小，跳过插值
-        num_pts_to_interp = int(np.floor(wp_distance[i] / float(INTERP_DISTANCE_RES)) - 1)
-        wp_vector = waypoints_np[i+1] - waypoints_np[i]
-        wp_uvector = wp_vector / np.linalg.norm(wp_vector)
-        for j in range(num_pts_to_interp):
-            next_wp_vector = INTERP_DISTANCE_RES * float(j+1) * wp_uvector
-            wp_interp.append(list(waypoints_np[i] + next_wp_vector))
+    interp_hash_by_vehicle = {}
+    for vehicle_id, waypoints in waypoints_by_vehicle.items():
+        waypoints_np = np.array(waypoints)
+        wp_distance = wp_distances_by_vehicle[vehicle_id]
+        # 插值
+        wp_interp = []
+        wp_interp_hash = []
+        interp_counter = 0
+        for i in range(waypoints_np.shape[0] - 1):
+            wp_interp.append(list(waypoints_np[i]))
+            wp_interp_hash.append(interp_counter)
             interp_counter += 1
-    wp_interp.append(list(waypoints_np[-1]))
-    wp_interp_hash.append(interp_counter)
+            if wp_distance[i] < min_distance:
+                continue  # 如果距离太小，跳过插值
+            num_pts_to_interp = int(np.floor(wp_distance[i] / float(INTERP_DISTANCE_RES)) - 1)
+            wp_vector = waypoints_np[i+1] - waypoints_np[i]
+            wp_uvector = wp_vector / np.linalg.norm(wp_vector)
+            for j in range(num_pts_to_interp):
+                next_wp_vector = INTERP_DISTANCE_RES * float(j+1) * wp_uvector
+                wp_interp.append(list(waypoints_np[i] + next_wp_vector))
+                interp_counter += 1
+        wp_interp.append(list(waypoints_np[-1]))
+        wp_interp_hash.append(interp_counter)
+        smoothed_waypoints_by_vehicle[vehicle_id] = wp_interp
+        interp_hash_by_vehicle[vehicle_id] = wp_interp_hash
 
     # 添加控制器
-    controller = Controller.Controller(waypoints, args.lateral_controller, args.longitudinal_controller)
+    controllers = []
+    for vehicle_id, vehicle in enumerate(vehicles):
+        waypoints = waypoints_by_vehicle[vehicle_id]
+        if not waypoints:
+            print(f"车辆{vehicle_id}没有航点。")
+            continue
+        controller = Controller.Controller(waypoints, args.lateral_controller, args.longitudinal_controller)
+        controllers.append(controller)
 
     # 计算仿真时间步长
+    # 迭代次数
     num_iterations = ITER_FOR_SIM_TIMESTEP
     if (ITER_FOR_SIM_TIMESTEP < 1):
         num_iterations = 1
     sim_start_stamp = world.get_snapshot().timestamp.elapsed_seconds
-    send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
+    for vehicle in vehicles:
+        send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
     sim_duration = 0
     for i in range(num_iterations):
         world.tick()
-        sim_duration += world.get_snapshot().timestamp.elapsed_seconds - sim_start_stamp
-        send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
+        current_stamp = world.get_snapshot().timestamp.elapsed_seconds
+        sim_duration += (current_stamp - sim_start_stamp)
+        for vehicle in vehicles:
+            send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
+        sim_start_stamp = current_stamp
+    # 计算平均仿真时间
     SIMULATION_TIME_STEP = sim_duration / float(num_iterations)
     print("SERVER SIMULATION STEP APPROXIMATION: " + str(SIMULATION_TIME_STEP))
 
     #  计算总的仿真帧数
     TOTAL_EPISODE_FRAMES = int((TOTAL_RUN_TIME + WAIT_TIME_BEFORE_START) / SIMULATION_TIME_STEP) + TOTAL_FRAME_BUFFER
-
     #  初始化车辆的初始状态
-    measurement = world.get_snapshot()
-    start_x, start_y, start_yaw = get_current_pose(vehicle)
-    send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
-    x_history = [start_x]
-    y_history = [start_y]
-    yaw_history = [start_yaw]
-    time_history = [0]
-    speed_history = [0]
-
-    cte_history = []
-    he_history = []
-    latency_history = []
-    reached_the_end = False
-    closest_index = 0
+    # start_x, start_y, start_yaw = get_current_pose(vehicle)
+    # send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
+    # x_history = [start_x]
+    # y_history = [start_y]
+    # yaw_history = [start_yaw]
+    # time_history = [0]
+    # speed_history = [0]
+    #
+    # cte_history = []
+    # he_history = []
+    # latency_history = []
+    x_histories, y_histories, yaw_histories, time_histories, speed_histories = [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles]
+    cte_histories, he_histories, latency_histories = [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles]
+    reached_the_end = [False for _ in vehicles]
+    closest_indices = [0 for _ in vehicles]
     for frame in range(TOTAL_EPISODE_FRAMES):
         world.tick()
         measurement = world.get_snapshot()
+        for i, vehicle in enumerate(vehicles):
+            dist_to_last_waypoint = 0.0
+            if vehicle is not None:
+                current_x, current_y, current_yaw = get_current_pose(vehicle)
+                current_speed = vehicle.get_velocity().length()
+                current_timestamp = measurement.timestamp.elapsed_seconds
 
-        current_x, current_y, current_yaw = get_current_pose(vehicle)
-        current_speed = vehicle.get_velocity().length()
-        current_timestamp = measurement.timestamp.elapsed_seconds
+                length = -1.5 if args.lateral_controller == 'PurePursuit' else 1.5 if args.lateral_controller in {'BangBang', 'PID', 'Stanley', 'POP'} else 0.0
 
-        if args.lateral_controller == 'PurePursuit':
-            length = -1.5
-        elif args.lateral_controller in {'BangBang', 'PID', 'Stanley', 'POP'}:
-            length = 1.5
-        else:
-            length = 0.0
+                current_x, current_y = controllers[i].get_shifted_coordinate(current_x, current_y, current_yaw, length)
 
-        current_x, current_y = controller.get_shifted_coordinate(current_x, current_y, current_yaw, length)
+                if current_timestamp <= WAIT_TIME_BEFORE_START:
+                    send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
+                    continue
+                else:
+                    current_timestamp -= WAIT_TIME_BEFORE_START
 
-        if current_timestamp <= WAIT_TIME_BEFORE_START:
-            send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
-            continue
-        else:
-            current_timestamp = current_timestamp - WAIT_TIME_BEFORE_START
+                x_histories[i].append(current_x)
+                y_histories[i].append(current_y)
+                yaw_histories[i].append(current_yaw)
+                speed_histories[i].append(current_speed)
+                time_histories[i].append(current_timestamp)
+                closest_distance = np.linalg.norm(np.array([waypoints_by_vehicle[i][closest_indices[i]][0] - current_x, waypoints_by_vehicle[i][closest_indices[i]][1] - current_y]))
 
-        x_history.append(current_x)
-        y_history.append(current_y)
-        yaw_history.append(current_yaw)
-        speed_history.append(current_speed)
-        time_history.append(current_timestamp)
+                new_distance = closest_distance
+                new_index = closest_indices[i]
+                while new_distance <= closest_distance:
+                    closest_distance = new_distance
+                    closest_indices[i] = new_index
+                    new_index += 1
+                    if new_index >= len(waypoints_by_vehicle[i]):
+                        break
+                    new_distance = np.linalg.norm(np.array([waypoints_by_vehicle[i][new_index][0] - current_x, waypoints_by_vehicle[i][new_index][1] - current_y]))
 
-        closest_distance = np.linalg.norm(np.array([waypoints_np[closest_index, 0] - current_x, waypoints_np[closest_index, 1] - current_y]))
+                new_distance = closest_distance
+                new_index = closest_indices[i]
+                while new_distance <= closest_distance:
+                    closest_distance = new_distance
+                    closest_indices[i] = new_index
+                    new_index -= 1
+                    if new_index < 0:
+                        break
+                    new_distance = np.linalg.norm(np.array([waypoints_by_vehicle[i][new_index][0] - current_x, waypoints_by_vehicle[i][new_index][1] - current_y]))
 
-        new_distance = closest_distance
-        new_index = closest_index
-        while new_distance <= closest_distance:
-            closest_distance = new_distance
-            closest_index = new_index
-            new_index += 1
-            if new_index >= waypoints_np.shape[0]:
-                break
-            new_distance = np.linalg.norm(np.array([waypoints_np[new_index, 0] - current_x, waypoints_np[new_index, 1] - current_y]))
+                waypoint_subset_first_index = closest_indices[i] - 1 if closest_indices[i] - 1 >= 0 else 0
+                waypoint_subset_last_index = closest_indices[i]
+                total_distance_ahead = 0
+                while total_distance_ahead < INTERP_LOOKAHEAD_DISTANCE:
+                    total_distance_ahead += np.linalg.norm(np.array([waypoints_by_vehicle[i][waypoint_subset_last_index][0] - waypoints_by_vehicle[i][waypoint_subset_last_index - 1][0], waypoints_by_vehicle[i][waypoint_subset_last_index][1] - waypoints_by_vehicle[i][waypoint_subset_last_index - 1][1]]))
+                    waypoint_subset_last_index += 1
+                    if waypoint_subset_last_index >= len(waypoints_by_vehicle[i]):
+                        waypoint_subset_last_index = len(waypoints_by_vehicle[i]) - 1
+                        break
 
-        new_distance = closest_distance
-        new_index = closest_index
-        while new_distance <= closest_distance:
-            closest_distance = new_distance
-            closest_index = new_index
-            new_index -= 1
-            if new_index < 0:
-                break
-            new_distance = np.linalg.norm(np.array([waypoints_np[new_index, 0] - current_x, waypoints_np[new_index, 1] - current_y]))
+                new_waypoints = smoothed_waypoints_by_vehicle[i][interp_hash_by_vehicle[i][waypoint_subset_first_index]:interp_hash_by_vehicle[i][waypoint_subset_last_index] + 1]
+                controllers[i].update_waypoints(new_waypoints)
 
-        waypoint_subset_first_index = closest_index - 1
-        if waypoint_subset_first_index < 0:
-            waypoint_subset_first_index = 0
+                controllers[i].update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame, new_distance)
+                controllers[i].update_controls()
+                cmd_throttle, cmd_steer, cmd_brake = controllers[i].get_commands()
 
-        waypoint_subset_last_index = closest_index
-        total_distance_ahead = 0
-        while total_distance_ahead < INTERP_LOOKAHEAD_DISTANCE:
-            total_distance_ahead += wp_distance[waypoint_subset_last_index]
-            waypoint_subset_last_index += 1
-            if waypoint_subset_last_index >= waypoints_np.shape[0]:
-                waypoint_subset_last_index = waypoints_np.shape[0] - 1
-                break
+                cte_histories[i].append(controllers[i].get_crosstrack_error(current_x, current_y, new_waypoints))
+                he_histories[i].append(controllers[i].get_heading_error(new_waypoints, current_yaw))
 
-        new_waypoints = wp_interp[wp_interp_hash[waypoint_subset_first_index]:wp_interp_hash[waypoint_subset_last_index] + 1]
-        controller.update_waypoints(new_waypoints)
+                latency_histories[i].append(controllers[i]._latency)
+                send_control_command(vehicle, throttle=cmd_throttle, steer=cmd_steer, brake=cmd_brake)
 
-        controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame, new_distance)
-        controller.update_controls()
-        cmd_throttle, cmd_steer, cmd_brake = controller.get_commands()
-
-        cte_history.append(controller.get_crosstrack_error(current_x, current_y, new_waypoints))
-        he_history.append(controller.get_heading_error(new_waypoints, current_yaw))
-
-        latency_history.append(controller._latency)
-        send_control_command(vehicle, throttle=cmd_throttle, steer=cmd_steer, brake=cmd_brake)
-
-        dist_to_last_waypoint = np.linalg.norm(np.array([waypoints[-1][0] - current_x, waypoints[-1][1] - current_y]))
-        if dist_to_last_waypoint < DIST_THRESHOLD_TO_LAST_WAYPOINT:
-            reached_the_end = True
-        if reached_the_end:
+                dist_to_last_waypoint = np.linalg.norm(np.array([waypoints_by_vehicle[i][-1][0] - current_x, waypoints_by_vehicle[i][-1][1] - current_y]))
+            if dist_to_last_waypoint < DIST_THRESHOLD_TO_LAST_WAYPOINT and vehicle is not None:
+                reached_the_end[i] = True
+                vehicle.destroy()
+                vehicles[i] = None
+        if all(reached_the_end):
             break
+
     try:
-        if reached_the_end:
-            print("\nReached End of Trajectory. Logging Results...")
-        else:
-            print("\nExceeded Simulation Time. Logging Results...")
-        send_control_command(vehicle, throttle=0.0, steer=0.0, brake=1.0)
-        write_trajectory_file(x_history, y_history, speed_history, time_history)
-        write_error_log(cte_history, he_history)
-        write_latency_log(latency_history)
+        for i in range(NUM_VEHICLES):
+            if reached_the_end[i]:
+                print(f"\n车辆{i+1}到达了路径终点。记录结果...")
+            else:
+                print(f"\n车辆{i+1}超过了仿真时间。记录结果...")
     finally:
-        cleanup_resources(world, vehicle)
+            cleanup_resources(world)
 
 def main():
     """
