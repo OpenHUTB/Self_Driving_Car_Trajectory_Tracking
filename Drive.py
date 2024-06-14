@@ -34,9 +34,9 @@ WAIT_TIME_BEFORE_START = 5.00   # simulator seconds (time before controller star
 TOTAL_RUN_TIME         = 200.00 # simulator seconds (total runtime before sim end)
 TOTAL_FRAME_BUFFER     = 300    # number of frames to buffer after total runtime
 NUM_PEDESTRIANS        = 0      # total number of pedestrians to spawn
-NUM_VEHICLES           = 2      # total number of vehicles to spawn
+NUM_VEHICLES           = 3     # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
-SEED_VEHICLES          = 0      # seed for vehicle spawn randomizer
+SEED_VEHICLES = 0  # seed for vehicle spawn randomizer
 
 WEATHERID = {
     "DEFAULT": 0,
@@ -55,27 +55,28 @@ WEATHERID = {
     "HARDRAINSUNSET": 13,
     "SOFTRAINSUNSET": 14,
 }
-SIMWEATHER = WEATHERID["CLEARNOON"]     # set simulation weather
+SIMWEATHER = WEATHERID["CLEARNOON"]  # set simulation weather
 
-PLAYER_START_INDEX = 1      # spawn index for player (keep to 1)
-FIGSIZE_X_INCHES   = 6      # x figure size of feedback in inches
-FIGSIZE_Y_INCHES   = 8      # y figure size of feedback in inches
-PLOT_LEFT          = 0.1    # in fractions of figure width and height
-PLOT_BOT           = 0.1
-PLOT_WIDTH         = 0.8
-PLOT_HEIGHT        = 0.8
+PLAYER_START_INDEX = 1  # spawn index for player (keep to 1)
+FIGSIZE_X_INCHES = 6  # x figure size of feedback in inches
+FIGSIZE_Y_INCHES = 8  # y figure size of feedback in inches
+PLOT_LEFT = 0.1  # in fractions of figure width and height
+PLOT_BOT = 0.1
+PLOT_WIDTH = 0.8
+PLOT_HEIGHT = 0.8
 
 WAYPOINTS_FILENAME = 'Waypoints.txt'  # waypoint file to load
-DIST_THRESHOLD_TO_LAST_WAYPOINT = 1.0 # some distance from last position before simulation ends (6 for Bang-Bang, 1 for others)
+DIST_THRESHOLD_TO_LAST_WAYPOINT = 1.0  # some distance from last position before simulation ends (6 for Bang-Bang, 1 for others)
 
-# Path interpolation parameters
-INTERP_MAX_POINTS_PLOT    = 10   # number of points used for displaying
-                                 # lookahead path
-INTERP_LOOKAHEAD_DISTANCE = 20   # lookahead in meters
-INTERP_DISTANCE_RES       = 0.01 # distance between interpolated points
+# Path interpolation parameterse
+INTERP_MAX_POINTS_PLOT = 10  # number of points used for displaying
+# lookahead path
+INTERP_LOOKAHEAD_DISTANCE = 20  # lookahead in meters
+INTERP_DISTANCE_RES = 0.01  # distance between interpolated points
 
 # Controller output directory
 CONTROLLER_OUTPUT_FOLDER = os.path.dirname(os.path.realpath(__file__)) + '/Results/'
+
 
 def make_carla_settings():
     """Make a CarlaSettings Object with the Required Settings"""
@@ -96,8 +97,10 @@ def make_carla_settings():
 
     return settings, weather
 
+
 class Timer(object):
     """ Timer Class """
+
     def __init__(self, period):
         self.step = 0
         self._lap_step = 0
@@ -121,6 +124,25 @@ class Timer(object):
         return time.time() - self._lap_time
 
 
+def add_vehicle(vehicles, sim_time, waypoints_by_vehicle, vehicle_ids, vehicle_bp, world, args, controllers):
+    print(sim_time)
+    for vehicle_id, waypoints in waypoints_by_vehicle.items():
+        if waypoints:
+            first_waypoint_time = waypoints[0][2]
+            if sim_time >= first_waypoint_time and vehicle_id not in vehicle_ids:
+
+                trans = carla.Transform(carla.Location(x=waypoints[0][0], y=waypoints[0][1], z=1),
+                                            carla.Rotation(yaw=15.27369213104248))
+
+                vehicle = world.try_spawn_actor(vehicle_bp, trans)
+                # if vehicle is not None:
+                #     print("生成")
+                controller = Controller.Controller(waypoints, args.lateral_controller, args.longitudinal_controller)
+                controllers.append(controller)
+                vehicles.append(vehicle)
+                vehicle_ids.append(vehicle_id)
+
+
 # 获取车辆当前的位置和偏航
 def get_current_pose(vehicle):
     """
@@ -139,6 +161,7 @@ def get_current_pose(vehicle):
     y = transform.location.y
     yaw = math.radians(transform.rotation.yaw)
     return (x, y, yaw)
+
 
 # 控制车辆的刹车、油门、方向盘
 def send_control_command(vehicle, throttle, steer, brake, hand_brake=False, reverse=False):
@@ -165,14 +188,17 @@ def send_control_command(vehicle, throttle, steer, brake, hand_brake=False, reve
     control.reverse = reverse
     vehicle.apply_control(control)
 
+
 def cleanup_resources(world):
     settings = world.get_settings()
     settings.synchronous_mode = False
     world.apply_settings(settings)
 
+
 def create_controller_output_dir(output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+
 
 def store_trajectory_plot(graph, fname):
     """ Store the Resulting Plot """
@@ -180,26 +206,30 @@ def store_trajectory_plot(graph, fname):
     file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, fname)
     graph.savefig(file_name)
 
-def write_trajectory_file(x_list, y_list, v_list, t_list):
+
+def write_trajectory_file(x_list, y_list, v_list, t_list, vehicle_id):
     create_controller_output_dir(CONTROLLER_OUTPUT_FOLDER)
-    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, 'Trajectory.csv') # t (s), x (m), y (m), v (m/s)
+    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, f'Trajectory_{vehicle_id}.csv')  # t (s), x (m), y (m), v (m/s)
     with open(file_name, 'w') as trajectory_file:
         for i in range(len(x_list)):
             trajectory_file.write('%0.3f, %0.3f, %0.3f, %0.3f\n' % (t_list[i], x_list[i], y_list[i], v_list[i]))
 
-def write_error_log(cte_list, he_list):
+
+def write_error_log(cte_list, he_list, vehicle_id):
     create_controller_output_dir(CONTROLLER_OUTPUT_FOLDER)
-    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, 'Tracking Error Log.csv') # cte (m), he (rad)
+    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, f'Tracking Error Log_{vehicle_id}.csv')  # cte (m), he (rad)
     with open(file_name, 'w') as error_log:
         for i in range(len(cte_list)):
             error_log.write('%0.10f,%0.10f\n' % (cte_list[i], he_list[i]))
 
-def write_latency_log(latency_list):
+
+def write_latency_log(latency_list, vehicle_id):
     create_controller_output_dir(CONTROLLER_OUTPUT_FOLDER)
-    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, 'Latency Log.csv') # latency (ms)
+    file_name = os.path.join(CONTROLLER_OUTPUT_FOLDER, f'Latency Log_{vehicle_id}.csv')  # latency (ms)
     with open(file_name, 'w') as latency_log:
         for i in range(len(latency_list)):
             latency_log.write('%0.10f\n' % (latency_list[i]))
+
 
 def exec_waypoint_nav_demo(args):
     """ Executes Waypoint Navigation """
@@ -233,12 +263,9 @@ def exec_waypoint_nav_demo(args):
     world.set_weather(weather)
     blueprint_library = world.get_blueprint_library()
     vehicle_bp = blueprint_library.filter('vehicle.audi.tt')[0]
-    spawn_points = world.get_map().get_spawn_points()
-    vehicles = []
-    for i in range(NUM_VEHICLES):
-        vehicle = world.try_spawn_actor(vehicle_bp, spawn_points[i])
-        vehicles.append(vehicle)
 
+    vehicles = []
+    vehicle_ids = []
     # # 从CSV文件中读取路径点数据，并将其转换为NumPy数组，便于进一步处理
     waypoints_file = WAYPOINTS_FILENAME
     # with open(waypoints_file) as waypoints_file_handle:
@@ -296,16 +323,7 @@ def exec_waypoint_nav_demo(args):
         smoothed_waypoints_by_vehicle[vehicle_id] = wp_interp
         interp_hash_by_vehicle[vehicle_id] = wp_interp_hash
 
-    # 添加控制器
     controllers = []
-    for vehicle_id, vehicle in enumerate(vehicles):
-        waypoints = waypoints_by_vehicle[vehicle_id]
-        if not waypoints:
-            print(f"车辆{vehicle_id}没有航点。")
-            continue
-        controller = Controller.Controller(waypoints, args.lateral_controller, args.longitudinal_controller)
-        controllers.append(controller)
-
     # 计算仿真时间步长
     # 迭代次数
     num_iterations = ITER_FOR_SIM_TIMESTEP
@@ -328,47 +346,45 @@ def exec_waypoint_nav_demo(args):
 
     #  计算总的仿真帧数
     TOTAL_EPISODE_FRAMES = int((TOTAL_RUN_TIME + WAIT_TIME_BEFORE_START) / SIMULATION_TIME_STEP) + TOTAL_FRAME_BUFFER
+
     #  初始化车辆的初始状态
-    # start_x, start_y, start_yaw = get_current_pose(vehicle)
-    # send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
-    # x_history = [start_x]
-    # y_history = [start_y]
-    # yaw_history = [start_yaw]
-    # time_history = [0]
-    # speed_history = [0]
-    #
-    # cte_history = []
-    # he_history = []
-    # latency_history = []
-    x_histories, y_histories, yaw_histories, time_histories, speed_histories = [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles]
-    cte_histories, he_histories, latency_histories = [[] for _ in vehicles], [[] for _ in vehicles], [[] for _ in vehicles]
-    reached_the_end = [False for _ in vehicles]
-    closest_indices = [0 for _ in vehicles]
+    x_histories, y_histories, yaw_histories, time_histories, speed_histories = [[], [], []], [[], [], []], [[], [], []], [[], [], []], [[], [], []]
+    cte_histories, he_histories, latency_histories = [[], [], []], [[], [], []], [[], [], []]
+    reached_the_end = [False, False, False]
+    closest_indices = [0, 0, 0]
+    measurement = world.get_snapshot()
+    first_time = measurement.timestamp.elapsed_seconds
+    print("first_time", first_time)
     for frame in range(TOTAL_EPISODE_FRAMES):
         world.tick()
-        measurement = world.get_snapshot()
+        current_timestamp = world.get_snapshot().timestamp.elapsed_seconds
+
+        sim_time = current_timestamp - first_time
+        add_vehicle(vehicles, sim_time, waypoints_by_vehicle, vehicle_ids, vehicle_bp, world, args, controllers)
+        # print("aaa")
         for i, vehicle in enumerate(vehicles):
+            # print("pppp")
             dist_to_last_waypoint = 0.0
             if vehicle is not None:
                 current_x, current_y, current_yaw = get_current_pose(vehicle)
                 current_speed = vehicle.get_velocity().length()
-                current_timestamp = measurement.timestamp.elapsed_seconds
-
                 length = -1.5 if args.lateral_controller == 'PurePursuit' else 1.5 if args.lateral_controller in {'BangBang', 'PID', 'Stanley', 'POP'} else 0.0
 
                 current_x, current_y = controllers[i].get_shifted_coordinate(current_x, current_y, current_yaw, length)
-
+                # 设置时间等待资源就绪
                 if current_timestamp <= WAIT_TIME_BEFORE_START:
                     send_control_command(vehicle, throttle=0.0, steer=0, brake=1.0)
                     continue
                 else:
                     current_timestamp -= WAIT_TIME_BEFORE_START
 
+                # 记录历史状态
                 x_histories[i].append(current_x)
                 y_histories[i].append(current_y)
                 yaw_histories[i].append(current_yaw)
                 speed_histories[i].append(current_speed)
                 time_histories[i].append(current_timestamp)
+
                 closest_distance = np.linalg.norm(np.array([waypoints_by_vehicle[i][closest_indices[i]][0] - current_x, waypoints_by_vehicle[i][closest_indices[i]][1] - current_y]))
 
                 new_distance = closest_distance
@@ -400,7 +416,6 @@ def exec_waypoint_nav_demo(args):
                     if waypoint_subset_last_index >= len(waypoints_by_vehicle[i]):
                         waypoint_subset_last_index = len(waypoints_by_vehicle[i]) - 1
                         break
-
                 new_waypoints = smoothed_waypoints_by_vehicle[i][interp_hash_by_vehicle[i][waypoint_subset_first_index]:interp_hash_by_vehicle[i][waypoint_subset_last_index] + 1]
                 controllers[i].update_waypoints(new_waypoints)
 
@@ -420,6 +435,7 @@ def exec_waypoint_nav_demo(args):
                 vehicle.destroy()
                 vehicles[i] = None
         if all(reached_the_end):
+            print("1")
             break
 
     try:
@@ -428,6 +444,9 @@ def exec_waypoint_nav_demo(args):
                 print(f"\n车辆{i+1}到达了路径终点。记录结果...")
             else:
                 print(f"\n车辆{i+1}超过了仿真时间。记录结果...")
+            write_trajectory_file(x_histories[i], y_histories[i], speed_histories[i], time_histories[i], i)
+            write_error_log(cte_histories[i], he_histories[i], i)
+            write_latency_log(latency_histories[i], i)
     finally:
             cleanup_resources(world)
 

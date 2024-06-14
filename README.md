@@ -41,7 +41,7 @@
 
 
 
-**1. 根据[链接](https://github.com/carla-simulator/carla/releases/tag/0.9.14) 下载Carla环境，然后创建Python 3.7的虚拟环境。**
+**1. 使用高速地图Carla环境，然后创建Python 3.7的虚拟环境。**
 
 ```shell
 pip install -r requirements.txt
